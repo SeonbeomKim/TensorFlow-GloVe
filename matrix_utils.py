@@ -81,7 +81,7 @@ class matrix_utils:
 				os.makedirs(savepath)
 			self.save_data(savepath+'word2idx.npy', word2idx)
 			print("word2idx save", savepath+'word2idx.npy')
-			self.save_data(savepath+'idx2word.npy', word2idx)
+			self.save_data(savepath+'idx2word.npy', idx2word)
 			print("idx2word save", savepath+'idx2word.npy')
 
 		return word2idx, idx2word
