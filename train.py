@@ -5,14 +5,39 @@ import numpy as np
 import os
 from tqdm import tqdm
 
-data_path = './text8'
+from sklearn.manifold import TSNE #pip install scipy, scikit-learn
+import matplotlib.pyplot as plt #pip install matplotlib
+
+data_path = './text8/text8'
 savepath = './npy/'
-tensorflow_saver_path = './saver'
+drawpath = './image/'
+
+tensorflow_saver_path = './saver/'
 top_voca = 10000
 window_size = 10
 embedding_size = 300
 x_max = 100
 lr = 0.05
+
+
+def draw_most_word_pyplot(model, idx2word, most, picture_name):
+	most_word = [idx2word[i] for i in range(most)]
+	
+	most_i_word_embedding = sess.run(model.i_word_embedding_table[:most])
+	most_k_word_embedding = sess.run(model.k_word_embedding_table[:most]) 
+	most_word_embedding = most_i_word_embedding + most_k_word_embedding
+	
+	plt.figure(figsize=(18,18))
+	tsne = TSNE(perplexity = 30, n_components = 2, init='pca')
+	low_dim_embed = tsne.fit_transform(most_word_embedding)
+
+	for i, label in enumerate(most_word):
+		x, y = low_dim_embed[i]
+		plt.scatter(x,y)
+		plt.annotate(label, xy=(x,y), xytext=(5,2), textcoords='offset points', ha='right', va='bottom')
+
+	plt.savefig(picture_name)
+	plt.close()
 
 
 def weighting_function(data, x_max):
@@ -56,19 +81,22 @@ def train(model, dataset, x_max, lr):
 
 
 
-def run(model, dataset, x_max, lr, restore=0):
+def run(model, dataset, x_max, lr, idx2word, restore=0):
 
 	if not os.path.exists(tensorflow_saver_path):
 		print("create save directory")
 		os.makedirs(tensorflow_saver_path)
 
+	if not os.path.exists(drawpath):
+		print("create draw directory")
+		os.makedirs(drawpath)
 
-	for epoch in range(restore+1, 20000+1):
+	for epoch in range(restore+1, 140+1):
 		train_loss = train(model, dataset, x_max, lr)
-
 		print("epoch:", epoch, 'train_loss:', train_loss, '\n')
 
 		if (epoch) % 10 == 0:
+			draw_most_word_pyplot(model, idx2word, most=500, picture_name=drawpath+str(epoch))
 			model.saver.save(sess, tensorflow_saver_path+str(epoch)+".ckpt")
 		
 
@@ -91,7 +119,9 @@ if os.path.exists(savepath+'matrix.npy') and os.path.exists(savepath+'word2idx.n
 
 # 처음 계산하는 경우 
 else:
+	print('calc word2idx, idx2word')
 	word2idx, idx2word = matrix_utils.get_vocabulary(data_path, top_voca=top_voca, savepath=savepath)
+	print('\ncalc co-occurence matrix')
 	matrix = matrix_utils.set_matrix(data_path, top_voca=top_voca, window_size=window_size, voca_loadpath=savepath, savepath=savepath)
 
 #matrix = matrix.astype(np.float32) # [top_voca, top_voca]
@@ -99,9 +129,28 @@ else:
 # keepdims=True 해줘야 row별로 나눔.
 
 dataset = matrix_utils.make_dataset_except_zerovalue_and_unk(matrix)
+del matrix
 #print(dataset)
 #print(dataset[:2], dataset.shape)
 #print(matrix)
 
-run(model, dataset, x_max=x_max, lr=lr)
 
+
+print('\ntop_voca', top_voca)
+print('window_size', window_size)
+print('embedding_size', embedding_size)
+print('x_max', x_max)
+print('lr', lr)
+print('dataset', dataset.shape)
+
+run(model, dataset, x_max=x_max, idx2word=idx2word, lr=lr)
+
+
+
+'''
+40만 x 40만 matrix 안만들고도 할 방법
+
+A x 40만 만들어서 0이 아닌것 x, y, value 만들고 
+40만 / A 번 돌리면 될듯.
+=> 완전한 테이블 만들지 않고도 학습셋은 만들 수 있음.
+'''

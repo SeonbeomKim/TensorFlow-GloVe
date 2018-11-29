@@ -21,21 +21,23 @@ class GloVe:
 		with tf.name_scope("embedding_table"):
 			self.i_word_embedding_table = tf.Variable(tf.random_normal([voca_size, embedding_size])) 
 			self.k_word_embedding_table = tf.Variable(tf.random_normal([voca_size, embedding_size])) 
-			self.i_word_bias = tf.Variable(tf.constant([0], tf.float32), name='i_word_bias')
-			self.k_word_bias = tf.Variable(tf.constant([0], tf.float32), name='k_word_bias')
+			self.i_word_bias = tf.Variable(tf.random_normal([voca_size]))
+			self.k_word_bias = tf.Variable(tf.random_normal([voca_size]))
 
 		with tf.name_scope("embedding_lookup"):
 			self.i_embedding = tf.nn.embedding_lookup(self.i_word_embedding_table, self.i_word_idx) # [N, 1, self.embedding_size]
-			self.k_embedding = tf.nn.embedding_lookup(self.k_word_embedding_table, self.i_word_idx) # [N, 1, self.embedding_size]
+			self.i_bias_embedding = tf.nn.embedding_lookup(self.i_word_bias, self.i_word_idx) # [N, 1]
+			self.k_embedding = tf.nn.embedding_lookup(self.k_word_embedding_table, self.k_word_idx) # [N, 1, self.embedding_size]
+			self.k_bias_embedding = tf.nn.embedding_lookup(self.k_word_bias, self.k_word_idx) # [N, 1]
 
 		with tf.name_scope('probability'):
 			# dot product
 			self.probability = tf.matmul(self.i_embedding, tf.transpose(self.k_embedding, [0, 2, 1])) # [N, 1, 1]
-			self.probability = tf.reshape(self.probability, [-1, 1]) + self.i_word_bias + self.k_word_bias # [N, 1]
+			self.probability = tf.reshape(self.probability, [-1, 1]) + self.i_bias_embedding + self.k_bias_embedding # [N, 1]
 
 		with tf.name_scope("cost"):
-			self.cost = self.weighting * (self.probability - tf.log(self.target))**2 # [N, 1]
-			self.cost = tf.reduce_mean(self.cost)
+			self.cost = self.weighting * ((self.probability - tf.log(self.target))**2) # [N, 1]
+			self.cost = tf.reduce_sum(self.cost)
 
 		with tf.name_scope('train'): 
 			optimizer = tf.train.AdagradOptimizer(self.lr)
