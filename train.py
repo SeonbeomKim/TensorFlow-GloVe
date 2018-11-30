@@ -10,15 +10,15 @@ import matplotlib.pyplot as plt #pip install matplotlib
 
 data_path = './text8/text8'
 savepath = './npy/'
+tensorflow_saver_path = './saver/'
 drawpath = './image/'
 
-tensorflow_saver_path = './saver/'
-top_voca = 10000
+top_voca = 50000
+sub_voca_len = 10000
 window_size = 10
 embedding_size = 300
 x_max = 100
 lr = 0.05
-
 
 def draw_most_word_pyplot(model, idx2word, most, picture_name):
 	most_word = [idx2word[i] for i in range(most)]
@@ -95,7 +95,7 @@ def run(model, dataset, x_max, lr, idx2word, restore=0):
 		train_loss = train(model, dataset, x_max, lr)
 		print("epoch:", epoch, 'train_loss:', train_loss, '\n')
 
-		if (epoch) % 10 == 0:
+		if (epoch) % 5 == 0:
 			draw_most_word_pyplot(model, idx2word, most=500, picture_name=drawpath+str(epoch))
 			model.saver.save(sess, tensorflow_saver_path+str(epoch)+".ckpt")
 		
@@ -110,7 +110,7 @@ model = GloVe.GloVe(
 			embedding_size = embedding_size
 		)
 
-
+'''
 # 이미 계산한 결과가 있으면 불러옴.
 if os.path.exists(savepath+'matrix.npy') and os.path.exists(savepath+'word2idx.npy') and os.path.exists(savepath+'idx2word.npy'):
 	word2idx = matrix_utils.load_data(savepath+'word2idx.npy', data_structure ='dictionary')
@@ -119,9 +119,7 @@ if os.path.exists(savepath+'matrix.npy') and os.path.exists(savepath+'word2idx.n
 
 # 처음 계산하는 경우 
 else:
-	print('calc word2idx, idx2word')
 	word2idx, idx2word = matrix_utils.get_vocabulary(data_path, top_voca=top_voca, savepath=savepath)
-	print('\ncalc co-occurence matrix')
 	matrix = matrix_utils.set_matrix(data_path, top_voca=top_voca, window_size=window_size, voca_loadpath=savepath, savepath=savepath)
 
 #matrix = matrix.astype(np.float32) # [top_voca, top_voca]
@@ -129,11 +127,27 @@ else:
 # keepdims=True 해줘야 row별로 나눔.
 
 dataset = matrix_utils.make_dataset_except_zerovalue_and_unk(matrix)
-del matrix
 #print(dataset)
 #print(dataset[:2], dataset.shape)
 #print(matrix)
 
+run(model, dataset, x_max=x_max, lr=lr)
+'''
+
+'''
+test = matrix_utils.set_large_voca_matrix(
+			data_path=data_path, 
+			top_voca=50000, 
+			window_size=10, 
+			sub_voca_len=5000*2,  
+			savepath=savepath
+		)
+'''
+# 이미 계산한 결과가 있으면 불러옴.
+if os.path.exists(savepath+'total_data_set.npy') and os.path.exists(savepath+'word2idx.npy') and os.path.exists(savepath+'idx2word.npy'):
+	#word2idx = matrix_utils.load_data(savepath+'word2idx.npy', data_structure ='dictionary')
+	idx2word = matrix_utils.load_data(savepath+'idx2word.npy', data_structure ='dictionary')
+	dataset = matrix_utils.load_data(savepath+'total_data_set.npy')
 
 
 print('\ntop_voca', top_voca)
@@ -144,13 +158,3 @@ print('lr', lr)
 print('dataset', dataset.shape)
 
 run(model, dataset, x_max=x_max, idx2word=idx2word, lr=lr)
-
-
-
-'''
-40만 x 40만 matrix 안만들고도 할 방법
-
-A x 40만 만들어서 0이 아닌것 x, y, value 만들고 
-40만 / A 번 돌리면 될듯.
-=> 완전한 테이블 만들지 않고도 학습셋은 만들 수 있음.
-'''
