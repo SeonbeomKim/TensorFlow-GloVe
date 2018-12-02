@@ -6,9 +6,15 @@ import os
 class matrix_utils:
 	def __init__(self):
 		pass
+	
+	def get_penalty_table(self, left_window_word, right_window_word):
+		# paper 4.2  in all case ~~
+		left_penalty = np.arange(len(left_window_word), 0, -1)
+		right_penalty = np.arange(1, len(right_window_word)+1)
+		return np.concatenate((left_penalty, right_penalty))
 
 
-	def set_large_voca_matrix(self, data_path, top_voca=50000, window_size=5, sub_voca_len=5000, savepath=None):
+	def get_large_voca_matrix(self, data_path, top_voca=50000, window_size=5, sub_voca_len=5000, savepath=None):
 		'''
 		40만 x 40만 matrix 안만들고도 할 방법
 
@@ -39,7 +45,7 @@ class matrix_utils:
 			sub_word2idx = dict(sub_word2idx)
 
 			#sub_voca co-occurence matrix
-			sub_matrix = np.zeros([sub_voca_len, top_voca], dtype=np.int32)
+			sub_matrix = np.zeros([sub_voca_len, top_voca], dtype=np.float32)
 
 			for index in tqdm(range(len(word)), ncols=50):
 				# get center word
@@ -53,13 +59,15 @@ class matrix_utils:
 					left_window_word = word[max(index-window_size, 0):index] # left context 데이터가 window size보다 적은 경우 처리.
 					right_window_word = word[index+1:min(index+window_size, len(word)-1)+1] # right context 데이터가 window size모다 적은 경우 처리.
 					context_word = left_window_word + right_window_word # [window_size*2]
+					penalty_table = self.get_penalty_table(left_window_word, right_window_word)
 
 					# calc sub_matrix value(co-occurence)
-					for context in context_word:
+					for idx, context in enumerate(context_word):
 						# calc context_word's column of sub_matrix
 						if context in word2idx:
 							matrix_column = word2idx[context]
-							sub_matrix[matrix_row, matrix_column] += 1
+							sub_matrix[matrix_row, matrix_column] += (1/penalty_table[idx])
+
 			
 			dataset = self.make_dataset_except_zerovalue_and_unk(sub_matrix, add_row=sub_voca_len*i)
 			if total_data_set is None:
@@ -78,17 +86,16 @@ class matrix_utils:
 		return total_data_set
 
 
-
-
-	def set_matrix(self, data_path, top_voca=50000, window_size=5, voca_loadpath=None, savepath=None):
-		if voca_loadpath is None:
-			word2idx, idx2word = self.get_vocabulary(data_path, top_voca, savepath)
+	def get_voca_matrix(self, data_path, top_voca=50000, window_size=5, savepath=None):
+		if os.path.exists(savepath+'word2idx.npy') and os.path.exists(savepath+'idx2word.npy'):
+			word2idx = self.load_data(savepath+'word2idx.npy', data_structure ='dictionary')
+			idx2word = self.load_data(savepath+'idx2word.npy', data_structure ='dictionary')
 		else:
-			word2idx = self.load_data(voca_loadpath+'word2idx.npy', data_structure ='dictionary')
-			idx2word = self.load_data(voca_loadpath+'idx2word.npy', data_structure ='dictionary')
+			word2idx, idx2word = self.get_vocabulary(data_path, top_voca, savepath)
+
 
 		# co-occurence matrix
-		matrix = np.zeros([top_voca, top_voca], dtype=np.int32)
+		matrix = {}
 
 		with open(data_path, 'r') as f:
 			word = (f.readline().split())	#text8은 하나의 줄이며 단어마다 띄어쓰기로 구분.
@@ -97,22 +104,80 @@ class matrix_utils:
 		for index in tqdm(range(len(word)), ncols=50):
 			# get center word
 			center_word = word[index]
-
-			# get context word
-			left_window_word = word[max(index-window_size, 0):index] # left context 데이터가 window size보다 적은 경우 처리.
-			right_window_word = word[index+1:min(index+window_size, len(word)-1)+1] # right context 데이터가 window size모다 적은 경우 처리.
-			context_word = left_window_word + right_window_word # [window_size*2]
-
+			
 			# calc center_word's row of matrix
 			if center_word in word2idx:
 				matrix_row = word2idx[center_word]
+			
+				# get context word
+				left_window_word = word[max(index-window_size, 0):index] # left context 데이터가 window size보다 적은 경우 처리.
+				right_window_word = word[index+1:min(index+window_size, len(word)-1)+1] # right context 데이터가 window size모다 적은 경우 처리.
+				context_word = left_window_word + right_window_word # [window_size*2]
+				penalty_table = self.get_penalty_table(left_window_word, right_window_word)
 
 				# calc matrix value(co-occurence)
-				for context in context_word:
+				for idx, context in enumerate(context_word):
 					# calc context_word's column of matrix
 					if context in word2idx:
 						matrix_column = word2idx[context]
-						matrix[matrix_row, matrix_column] += 1
+
+						if (matrix_row, matrix_column) in matrix:
+							matrix[(matrix_row, matrix_column)] += (1/penalty_table[idx])
+						else:
+							matrix[(matrix_row, matrix_column)] = (1/penalty_table[idx])
+		
+		keys = np.array(list(matrix.keys()))
+		values = list(matrix.values())
+		matrix = np.array(list(zip(keys[:, 0], keys[:, 1], values)))
+		del keys
+		del values
+		del word
+
+		if savepath is not None:
+			if not os.path.exists(savepath):
+				print("create save directory")
+				os.makedirs(savepath)
+			self.save_data(savepath+'total_data_set.npy', matrix)
+			print("total_data_set save", savepath+'total_data_set.npy')
+			
+		return matrix
+
+
+	'''
+	def set_matrix(self, data_path, top_voca=50000, window_size=5, voca_loadpath=None, savepath=None):
+		if voca_loadpath is None:
+			word2idx, idx2word = self.get_vocabulary(data_path, top_voca, savepath)
+		else:
+			word2idx = self.load_data(voca_loadpath+'word2idx.npy', data_structure ='dictionary')
+			idx2word = self.load_data(voca_loadpath+'idx2word.npy', data_structure ='dictionary')
+
+		# co-occurence matrix
+		matrix = np.zeros([top_voca, top_voca], dtype=np.float32)
+
+		with open(data_path, 'r') as f:
+			word = (f.readline().split())	#text8은 하나의 줄이며 단어마다 띄어쓰기로 구분.
+
+		from tqdm import tqdm	
+		for index in tqdm(range(len(word)), ncols=50):
+			# get center word
+			center_word = word[index]
+			
+			# calc center_word's row of matrix
+			if center_word in word2idx:
+				matrix_row = word2idx[center_word]
+			
+				# get context word
+				left_window_word = word[max(index-window_size, 0):index] # left context 데이터가 window size보다 적은 경우 처리.
+				right_window_word = word[index+1:min(index+window_size, len(word)-1)+1] # right context 데이터가 window size모다 적은 경우 처리.
+				context_word = left_window_word + right_window_word # [window_size*2]
+				penalty_table = self.get_penalty_table(left_window_word, right_window_word)
+
+				# calc matrix value(co-occurence)
+				for idx, context in enumerate(context_word):
+					# calc context_word's column of matrix
+					if context in word2idx:
+						matrix_column = word2idx[context]
+						matrix[matrix_row, matrix_column] += (1/penalty_table[idx])
 		
 		print('대칭성 체크(A == A.T)', np.array_equal(matrix, matrix.T))
 		
@@ -124,7 +189,7 @@ class matrix_utils:
 			print("matrix save", savepath+'matrix.npy')
 
 		return matrix
-		
+	'''
 
 
 
@@ -153,12 +218,10 @@ class matrix_utils:
 
 
 	def make_dataset_except_zerovalue_and_unk(self, matrix, add_row=0):
-		# except UNK
-
-		not_zero_index = np.where(matrix != 0) # x_index_list, y_index_list
+		not_zero_index = np.where(matrix != 0.0) # x_index_list, y_index_list
 		
 		# shape: [data_set_length, 3], value: [x_index, y_index, value]
-		dataset = list(zip(not_zero_index[0]+add_row, not_zero_index[1], matrix[matrix != 0]))
+		dataset = list(zip(not_zero_index[0]+add_row, not_zero_index[1], matrix[matrix != 0.0]))
 		return np.array(dataset)
 
 
@@ -173,3 +236,5 @@ class matrix_utils:
 
 	def save_data(self, path, data):
 		np.save(path, data)
+
+

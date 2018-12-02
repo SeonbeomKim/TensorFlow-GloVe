@@ -53,17 +53,18 @@ def weighting_function(data, x_max):
 
 
 def train(model, dataset, x_max, lr):
-	batch_size = 256
+	batch_size = 512
 	loss = 0
 
 	np.random.shuffle(dataset)
 
 	for i in tqdm(range( int(np.ceil(len(dataset)/batch_size)) ), ncols=50):
 		batch = dataset[batch_size * i: batch_size * (i + 1)] # [batch_size, 3]
+		batch = np.array(batch)
 
-		i_word_idx = batch[:, 0:1] # [batch_size, 1]
-		k_word_idx = batch[:, 1:2] # [batch_size, 1] 
-		target = batch[:, 2:].astype(np.float32) # [batch_size, 1] # will be applied log in model
+		i_word_idx = batch[:, 0:1].astype(np.int32) # [batch_size, 1]
+		k_word_idx = batch[:, 1:2].astype(np.int32) # [batch_size, 1] 
+		target = batch[:, 2:] # [batch_size, 1] # will be applied log in model
 		weighting = weighting_function(target, x_max)
 
 		train_loss, _ = sess.run([model.cost, model.minimize],
@@ -110,44 +111,23 @@ model = GloVe.GloVe(
 			embedding_size = embedding_size
 		)
 
-'''
-# 이미 계산한 결과가 있으면 불러옴.
-if os.path.exists(savepath+'matrix.npy') and os.path.exists(savepath+'word2idx.npy') and os.path.exists(savepath+'idx2word.npy'):
-	word2idx = matrix_utils.load_data(savepath+'word2idx.npy', data_structure ='dictionary')
-	idx2word = matrix_utils.load_data(savepath+'idx2word.npy', data_structure ='dictionary')
-	matrix = matrix_utils.load_data(savepath+'matrix.npy')
 
-# 처음 계산하는 경우 
-else:
-	word2idx, idx2word = matrix_utils.get_vocabulary(data_path, top_voca=top_voca, savepath=savepath)
-	matrix = matrix_utils.set_matrix(data_path, top_voca=top_voca, window_size=window_size, voca_loadpath=savepath, savepath=savepath)
-
-#matrix = matrix.astype(np.float32) # [top_voca, top_voca]
-#matrix /= np.sum(matrix, axis=1, keepdims=True) # [top_voca, top_voca]
-# keepdims=True 해줘야 row별로 나눔.
-
-dataset = matrix_utils.make_dataset_except_zerovalue_and_unk(matrix)
-#print(dataset)
-#print(dataset[:2], dataset.shape)
-#print(matrix)
-
-run(model, dataset, x_max=x_max, lr=lr)
-'''
-
-'''
-test = matrix_utils.set_large_voca_matrix(
-			data_path=data_path, 
-			top_voca=50000, 
-			window_size=10, 
-			sub_voca_len=5000*2,  
-			savepath=savepath
-		)
-'''
 # 이미 계산한 결과가 있으면 불러옴.
 if os.path.exists(savepath+'total_data_set.npy') and os.path.exists(savepath+'word2idx.npy') and os.path.exists(savepath+'idx2word.npy'):
 	#word2idx = matrix_utils.load_data(savepath+'word2idx.npy', data_structure ='dictionary')
 	idx2word = matrix_utils.load_data(savepath+'idx2word.npy', data_structure ='dictionary')
-	dataset = matrix_utils.load_data(savepath+'total_data_set.npy')
+	dataset = matrix_utils.load_data(savepath+'matrix.npy')
+
+else:
+	dataset = matrix_utils.get_large_voca_matrix(
+				data_path=data_path, 
+				top_voca=50000, 
+				window_size=10, 
+				sub_voca_len=5000*2,  
+				savepath=savepath
+			) # 10000 * 50000 을 5번 해서 데이터셋 추출. # 메모리 안터짐 (8기가 램)
+	#dataset = matrix_utils.get_voca_matrix(data_path, top_voca=top_voca, window_size=window_size, savepath=savepath) #메모리 터짐. (8기가 램)
+	idx2word = matrix_utils.load_data(savepath+'idx2word.npy', data_structure ='dictionary')
 
 
 print('\ntop_voca', top_voca)
@@ -155,6 +135,7 @@ print('window_size', window_size)
 print('embedding_size', embedding_size)
 print('x_max', x_max)
 print('lr', lr)
-print('dataset', dataset.shape)
+print('dataset', dataset.shape)	# 50000 word: [42.486.604, 3],   10000 word: [20.943.764, 3]
 
-run(model, dataset, x_max=x_max, idx2word=idx2word, lr=lr)
+run(model, dataset, x_max=x_max, idx2word=idx2word, lr=lr) 
+
