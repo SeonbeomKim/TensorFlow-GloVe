@@ -11,3 +11,12 @@ GloVe: Global Vectors for Word Representation
     
 ## dataset
    * text8: http://mattmahoney.net/dc/text8.zip
+
+## train 135epoch 
+![135](./image/135.png)
+
+## train 100epoch 
+![100](./image/100.png)
+
+## train 5epoch 
+![5](./image/5.png)
