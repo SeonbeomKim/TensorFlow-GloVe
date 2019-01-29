@@ -1,3 +1,5 @@
+TODO: target log(X_ik) => log(1+X_ik)로 변경하고 다시 실험
+
 # TensorFlow-GloVe
 GloVe: Global Vectors for Word Representation
 
